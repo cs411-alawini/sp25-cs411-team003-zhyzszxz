@@ -11,7 +11,7 @@
 | Member1     |        Joey Zhou       |
 | Member1     |   yiheng5@illinois.edu |
 | Member2     |     Xingyu Zhu         |
-| Member2     |  xingyu7@illinois.edu  |
+| Member2     |  xingyu@illinois.edu  |
 | Member3     |     Zixi Huang         |
 | Member3     |  zexih2@illinois.edu   |
 
