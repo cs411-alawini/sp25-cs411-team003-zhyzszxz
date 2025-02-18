@@ -26,5 +26,6 @@
 ## Project Summary
 
 The E-Commerce Sales Prediction and Inventory Optimization System aims to enhance sales forecasting and inventory management for online retailers. By leveraging historical sales data, customer behavior, and market trends, the system will predict future sales, helping businesses reduce stockouts, prevent overstocking, and optimize inventory turnover.
+
 The project integrates data analytics and machine learning to analyze past transactions, seasonal demand, and external factors such as promotions and holidays. It will provide actionable insights for store owners, allowing them to adjust stock levels dynamically, set competitive pricing, and improve order fulfillment efficiency. The system will also incorporate visual dashboards for real-time monitoring, enabling businesses to make data-driven decisions to maximize revenue and minimize waste. 
 
