@@ -1,0 +1,150 @@
+2. Assumptions and Explanations
+Customers
+Reason: A single attribute for a “user” is inadequate because we need multiple details: customer_unique_id, zip_code_prefix, city, state, etc. Making it an entity supports many relationships (such as multiple orders).
+Assumption: Each customer_id is unique in the table (primary key).
+Orders
+Reason: An order is not just a status attribute—it’s a significant concept containing timestamps, status, multiple line items, etc.
+Assumption: order_id is unique, referencing exactly one customer. Each order may have multiple items, payments, and reviews.
+OrderItems
+Reason: Each order can contain multiple products, each with different pricing or shipping limits. If we tried to store product details in Orders, we’d have repeating groups. A separate entity normalizes these repeating line items.
+Assumption: Composite primary key (order_id, order_item_id) ensures unique line items.
+Payments
+Reason: We allow multiple payment records (installments or partial payments) for a single order.
+Assumption: Composite primary key (order_id, payment_sequential) ensures each order can have multiple payment entries.
+Reviews
+Reason: A review includes rating, comment, creation date, etc. Storing these in Orders would cause many partial or transitive dependencies.
+Assumption: review_id is the PK; order_id is a foreign key to connect the review to a single order. (Even if the original dataset has a composite key, we assume review_id is globally unique.)
+Products
+Reason: A product has multiple descriptive attributes (weight, dimensions, category). If stored in OrderItems, duplication would occur each time the product is purchased.
+Assumption: product_id is the PK, and the product_category_name references a category translation table.
+CategoryTranslation
+Reason: This table maps Portuguese category names to English. Multiple products can share the same category name, so we store them once and reference them.
+Assumption: product_category_name is the PK; product_category_name_english is the translation.
+Sellers
+Reason: Each seller is different, with a distinct ID, city, and state. One seller can be associated with multiple order items.
+Assumption: seller_id is the PK; references from OrderItems show who sold that product.
+Geolocation
+Reason: Storing lat/long data for every customer or seller row would be highly duplicative, especially if they share the same zip code prefix. Instead, Geolocation is a reference table with city/state/lat/long.
+Assumption: This table can be matched on zip_code_prefix, but it’s not a strict FK → PK match. We treat it as a many-to-many link (dotted line in UML), because multiple customers/sellers can share a prefix, and one prefix can match multiple city/state entries.
+
+Relationship Cardinalities and Assumptions
+Customers → Orders: (1 : 0..*)
+A single customer can place many orders, but an order belongs to exactly one customer.
+Orders → OrderItems: (1 : 0..*)
+One order may have many line items (products). Each line item references exactly one order.
+Orders → Payments: (1 : 0..*)
+One order may be split across multiple payment records. Each payment belongs to exactly one order.
+Orders → Reviews: (1 : 0..*)
+An order can have 0 or 1 or multiple reviews. Each review is tied to exactly one order.
+OrderItems → Products: (0..* : 1)
+Multiple order items can reference the same product. Each item references exactly one product.
+OrderItems → Sellers: (0..* : 1)
+Each order item is sold by exactly one seller; one seller can have many line items across many orders.
+Products → CategoryTranslation: (0..* : 1)
+Many products might share the same category label. 
+Customers/Sellers → Geolocation: (0..* : 0..*)
+A looser relationship: multiple customers (or sellers) can share the same zip_code_prefix, and each prefix can appear multiple times in the Geolocation table. 
+
+
+
+4. Normalization
+First Normal Form (1NF):
+We made sure that every piece of data in our tables is stored in a single, indivisible unit. There are no lists or groups of values in a single field. For example, each customer record has one customer ID, one zip code, etc., without any extra hidden groupings.
+
+Second Normal Form (2NF):
+In tables that use a composite key—like OrderItems and Payments—every non-key piece of data depends on the entire key. This means details like product ID or payment value can’t be partially linked to just part of the key; they rely on the full combination (e.g., both order_id and order_item_id).
+
+Third Normal Form (3NF):
+We avoided having non-key attributes depend on other non-key attributes. A good example is how we handle product categories: instead of repeating the category name in every product record, we store it just once in the CategoryTranslation table. This way, if a category name ever needs to change, it’s updated in one place only.
+
+Composite Keys and Data Integrity:
+Using composite keys in tables like OrderItems and Payments helps keep the data unique and consistent. Each record is uniquely identified, which makes it easier to maintain data integrity and prevent errors during updates or deletions.
+
+Geolocation Special Case:
+For the Geolocation table, we handle geographic data (like latitude and longitude) separately. This avoids duplicating the same information across customer and seller records. Even though this relationship isn’t strictly enforced by a foreign key, it still effectively reduces redundancy and keeps the data cleaner.
+
+
+
+5. Logical Design (Relational Schema)
+
+Customers(
+  customer_id : VARCHAR [PK],
+  customer_unique_id : VARCHAR,
+  customer_zip_code_prefix : INT,
+  customer_city : VARCHAR,
+  customer_state : VARCHAR
+)
+
+Orders(
+  order_id : VARCHAR [PK],
+  customer_id : VARCHAR [FK to Customers.customer_id],
+  order_status : VARCHAR,
+  order_purchase_timestamp : TIMESTAMP,
+  order_approved_at : TIMESTAMP,
+  order_delivered_carrier_date : TIMESTAMP,
+  order_delivered_customer_date : TIMESTAMP,
+  order_estimated_delivery_date : TIMESTAMP
+)
+
+OrderItems(
+  order_id : VARCHAR [FK to Orders.order_id],
+  order_item_id : INT,
+  product_id : VARCHAR [FK to Products.product_id],
+  seller_id : VARCHAR [FK to Sellers.seller_id],
+  shipping_limit_date : TIMESTAMP,
+  price : DECIMAL,
+  freight_value : DECIMAL,
+  [PK(order_id, order_item_id)]
+)
+
+Payments(
+  order_id : VARCHAR [FK to Orders.order_id],
+  payment_sequential : INT,
+  payment_type : VARCHAR,
+  payment_installments : INT,
+  payment_value : DECIMAL,
+  [PK(order_id, payment_sequential)]
+)
+
+Reviews(
+  review_id : VARCHAR [PK],
+  order_id : VARCHAR [FK to Orders.order_id],
+  review_score : INT,
+  review_comment_title : VARCHAR,
+  review_comment_message : VARCHAR,
+  review_creation_date : TIMESTAMP,
+  review_answer_timestamp : TIMESTAMP
+)
+
+Products(
+  product_id : VARCHAR [PK],
+  product_category_name : VARCHAR,
+  product_name_length : INT,
+  product_description_length : INT,
+  product_photos_qty : INT,
+  product_weight_g : INT,
+  product_length_cm : INT,
+  product_height_cm : INT,
+  product_width_cm : INT
+)
+
+CategoryTranslation(
+  product_category_name : VARCHAR [PK],
+  product_category_name_english : VARCHAR
+)
+
+Sellers(
+  seller_id : VARCHAR [PK],
+  seller_zip_code_prefix : INT,
+  seller_city : VARCHAR,
+  seller_state : VARCHAR
+)
+
+Geolocation(
+  geolocation_zip_code_prefix : INT,
+  geolocation_lat : DECIMAL,
+  geolocation_lng : DECIMAL,
+  geolocation_city : VARCHAR,
+  geolocation_state : VARCHAR
+)
+
