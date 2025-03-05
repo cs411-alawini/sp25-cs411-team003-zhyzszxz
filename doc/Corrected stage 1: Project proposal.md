@@ -48,7 +48,8 @@ Another data source is the UCI Machine Learning Repository - Online Retail Datas
 
 Our final application interface aims to make managing e-commerce sales and inventory super simple. There will be a  main dashboard where you can quickly see key info like current stock levels, upcoming sales predictions, and alerts for any unusual activity. Users can upload CSV or Excel files to update data to easily create, read, update, or delete product entries.  We also consider adding a search bar to assist customers to quickly locate their target information.  In brief, it will look like a report with a clean header at the top displays our logo and navigation tabs while a sidebar on the left provides quick links to key sections like Inventory Overview, Sales Trends, and Alerts. 
 
-![Stage 1 UI Mockup](stage1_UI_mockup.jpg)
+![ff54f0d1f09fa1278d6e7f4ce62fa2f](https://github.com/user-attachments/assets/a37697e8-9ee9-43f7-ae45-cb4d7f0206c4)
+
 
 
   (2). Project work distribution: Who will be responsible for each of the tasks or subtasks?
