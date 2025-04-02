@@ -125,14 +125,14 @@ Orders, OrderItems, Payments, Reviews, Products, CategoryTranslation, Geolocatio
 Customers:
   Current Schema: Contains customer_id, customer_city, and customer_state.
   Explanation: Since there is no zip code attribute in this version, both customer_city and customer_state are assumed to depend solely on customer_id.
-  Potential Issue: If a customer_zip_code_prefix were included and if that attribute determined the city and state, then a transitive dependency would exist.
-  Fix (if needed): Decompose the table by removing the geographic details (city/state) from Customers and referencing them via the Geolocation table, thereby eliminating the transitive dependency.
+  Issue: A customer_zip_code_prefix is included, this attribute determined the city and state, so a transitive dependency exist.
+  Fix: Decompose the table by removing the geographic details (city/state) from Customers and referencing them via the Geolocation table, thereby eliminating the transitive dependency.
 
 Sellers:
   Current Schema: Contains seller_id, seller_zip_code_prefix, seller_city, and seller_state.
   Explanation: These attributes are intended to depend on the seller's unique identifier.
-  Potential Issue: If seller_zip_code_prefix uniquely determines seller_city and seller_state, then there is a transitive dependency (i.e., seller_zip_code_prefix → seller_city, seller_state).
-  Fix (if needed): Remove seller_city and seller_state from the Sellers table and retrieve them through a relationship with the Geolocation table. This change would fully eliminate the transitive dependency and bring the table into strict 3NF.
+  Issue: Seller_zip_code_prefix uniquely determines seller_city and seller_state, so there is a transitive dependency (i.e., seller_zip_code_prefix → seller_city, seller_state).
+  Fix: Remove seller_city and seller_state from the Sellers table and retrieve them through a relationship with the Geolocation table. This change would fully eliminate the transitive dependency and bring the table into strict 3NF.
 
 5. Logical Design (Relational Schema)
  
