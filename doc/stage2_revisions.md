@@ -1,6 +1,7 @@
 ER/UML Diagram:
     Removed foreign keys.
     Excluded OrderItems as an entity (it serves as a relation between Orders and Products), directly connected related schemas.
+    Corrected diagram is in doc/Stage2_Corrected_UML Diagram.drawio.pdf
 
 Relational Schema:
     Removed the redundant customer_unique_id from Customers.
