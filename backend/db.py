@@ -83,6 +83,60 @@ def add_product():
         print(name)
         print("Insert error:", e)
         return jsonify({"error": "Insert failed"}), 500
+    
+
+
+    
+# Search Orders 
+@app.route('/api/search-orders', methods=['GET'])
+def search_orders():
+    keyword = request.args.get('keyword', '')
+    cursor = db.cursor(dictionary=True)
+    query = """
+        SELECT order_id, customer_id, order_status, order_purchase_timestamp
+        FROM olist_orders_dataset
+        WHERE order_id LIKE %s OR customer_id LIKE %s
+        LIMIT 25;
+    """
+    like_pattern = f"%{keyword}%"
+    cursor.execute(query, (like_pattern, like_pattern))
+    results = cursor.fetchall()
+    return jsonify(results)
+
+
+#Delete Orders
+@app.route('/api/delete-order/<order_id>', methods=['DELETE'])
+def delete_order(order_id):
+    cursor = db.cursor()
+    cursor.execute("DELETE FROM olist_orders_dataset WHERE order_id = %s", (order_id,))
+    db.commit()
+    return jsonify({'message': 'Order deleted successfully'})
+
+#INSERT ORDER_API
+@app.route('/api/insert-order', methods=['POST'])
+def insert_order():
+    data = request.json
+    order_id = data.get('order_id')
+    customer_id = data.get('customer_id')
+    order_status = data.get('order_status')
+
+    cursor = db.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO olist_orders_dataset (order_id, customer_id, order_status) VALUES (%s, %s, %s)",
+            (order_id, customer_id, order_status)
+        )
+        db.commit()
+        return jsonify({'message': 'Order inserted successfully'}), 201
+    except mysql.connector.Error as err:
+        return jsonify({'error': str(err)}), 400
+
+
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
