@@ -124,13 +124,6 @@ def insert_order():
     except mysql.connector.Error as err:
         return jsonify({'error': str(err)}), 400
 
-@app.route('/api/update-order-status', methods=['PUT'])
-def update_order_status():
-    data = request.get_json()
-    order_id = data.get('order_id')
-    new_status = data.get('order_status')
-
-<<<<<<< HEAD
 
 @app.route('/api/update-order/<order_id>', methods=['PUT'])
 def update_order(order_id):
@@ -149,19 +142,6 @@ def update_order(order_id):
         return jsonify({'error': str(err)}), 400
 
 
-=======
-    cursor = db.cursor()
-    try:
-        cursor.execute("""
-            UPDATE olist_orders_dataset
-            SET order_status = %s
-            WHERE order_id = %s
-        """, (new_status, order_id))
-        db.commit()
-        return jsonify({'message': 'Order status updated successfully'}), 200
-    except mysql.connector.Error as err:
-        return jsonify({'error': str(err)}), 400
->>>>>>> a35dfd8a77b4f624642a4736d10cb1a37c9a3666
 
 if __name__ == '__main__':
     app.run(debug=True)
