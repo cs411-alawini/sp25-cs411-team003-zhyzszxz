@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import OrderSearchComponent from './OrderSearchComponent'; 
 import DeleteOrderComponent from './DeleteOrderComponent';
 import InsertOrderComponent from './InsertOrderComponent';
-import UpdateOrderComponent from './UpdateOrderComponent';
-import './App.css';
-
 const VALID_CATEGORIES = [
   "agro_industria_e_comercio", "alimentos", "alimentos_bebidas", "artes", "artes_e_artesanato",
   "artigos_de_festas", "artigos_de_natal", "audio", "automotivo", "bebes", "bebidas",
@@ -193,16 +190,11 @@ function App() {
       <OrderSearchComponent />
       <DeleteOrderComponent />
       <InsertOrderComponent />
-      <UpdateOrderComponent />
-
     </div>
 
-          
+
 
   );
 }
-
-
-
 
 export default App;
