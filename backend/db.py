@@ -133,6 +133,21 @@ def insert_order():
 
 
 
+@app.route('/api/update-order/<order_id>', methods=['PUT'])
+def update_order(order_id):
+    data = request.json
+    new_status = data.get('order_status')
+    
+    cursor = db.cursor()
+    try:
+        cursor.execute(
+            "UPDATE olist_orders_dataset SET order_status = %s WHERE order_id = %s",
+            (new_status, order_id)
+        )
+        db.commit()
+        return jsonify({'message': 'Order updated successfully'})
+    except mysql.connector.Error as err:
+        return jsonify({'error': str(err)}), 400
 
 
 

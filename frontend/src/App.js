@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import OrderSearchComponent from './OrderSearchComponent'; 
 import DeleteOrderComponent from './DeleteOrderComponent';
 import InsertOrderComponent from './InsertOrderComponent';
+import UpdateOrderComponent from './UpdateOrderComponent';
+import './App.css';
+
 const VALID_CATEGORIES = [
   "agro_industria_e_comercio", "alimentos", "alimentos_bebidas", "artes", "artes_e_artesanato",
   "artigos_de_festas", "artigos_de_natal", "audio", "automotivo", "bebes", "bebidas",
@@ -23,6 +26,7 @@ const VALID_CATEGORIES = [
   "seguros_e_servicos", "sinalizacao_e_seguranca", "tablets_impressao_imagem",
   "telefonia", "telefonia_fixa", "utilidades_domesticas"
 ];
+
 
 function App() {
   const [products, setProducts] = useState([]);
@@ -189,9 +193,11 @@ function App() {
       <OrderSearchComponent />
       <DeleteOrderComponent />
       <InsertOrderComponent />
+      <UpdateOrderComponent />
+
     </div>
 
-
+          
 
   );
 }
