@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import mysql.connector
+from mysql.connector import Error
 
 app = Flask(__name__)
 CORS(app)
@@ -13,7 +14,13 @@ DB_CONFIG = {
     'port': 3306
 }
 
-db = mysql.connector.connect(**DB_CONFIG)
+def get_connection():
+    try:
+        conn = mysql.connector.connect(**DB_CONFIG)
+        return conn
+    except Error as e:
+        print("Connection error:", e)
+        return None
 
 @app.route("/")
 def home():
@@ -21,8 +28,11 @@ def home():
 
 @app.route("/api/products", methods=["GET"])
 def get_products():
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
     try:
-        cursor = db.cursor(dictionary=True)
+        cursor = conn.cursor(dictionary=True)
         cursor.execute("""
             SELECT
                 p.product_id AS id,
@@ -33,115 +43,139 @@ def get_products():
                 i.order_id
             FROM olist_products_dataset p
             LEFT JOIN olist_order_items_dataset i
-                ON p.product_id = i.product_id
+              ON p.product_id = i.product_id
         """)
-        result = cursor.fetchall()
+        rows = cursor.fetchall()
         cursor.close()
-        return jsonify(result)
-    except Exception as e:
-        print("Error:", e)
+        conn.close()
+        return jsonify(rows)
+    except Error as e:
+        print("Error in get_products:", e)
         return jsonify({"error": "Database error"}), 500
 
 @app.route("/api/products", methods=["POST"])
 def add_product():
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
     try:
         data = request.get_json()
-        name = data.get("name")
-        quantity = int(data.get("quantity"))
-        price = float(data.get("price"))
-        order_id = data.get("order_id")
-        seller_id = data.get("seller_id")
-
-        cursor = db.cursor()
+        cursor = conn.cursor()
         cursor.execute("SET @new_id = UUID()")
-
         cursor.execute("""
-            INSERT INTO olist_products_dataset (
-                product_id,
-                product_category_name,
-                product_photos_qty
-            )
-            VALUES (
-                @new_id, %s, %s
-            )
-        """, (name, quantity))
-
+            INSERT INTO olist_products_dataset
+              (product_id, product_category_name, product_photos_qty)
+            VALUES (@new_id, %s, %s)
+        """, (data["name"], int(data["quantity"])))
         cursor.execute("""
-            INSERT INTO olist_order_items_dataset (
-                order_id, order_item_id, product_id, seller_id, price, freight_value
-            )
-            VALUES (
-                %s, 1, @new_id, %s, %s, %s
-            )
-        """, (order_id, seller_id, price, 0.0))
-
-        db.commit()
+            INSERT INTO olist_order_items_dataset
+              (order_id, order_item_id, product_id, seller_id, price, freight_value)
+            VALUES (%s, 1, @new_id, %s, %s, 0.0)
+        """, (data["order_id"], data["seller_id"], float(data["price"])))
+        conn.commit()
         cursor.close()
+        conn.close()
         return jsonify({"message": "Product and order item added successfully"}), 201
-    except Exception as e:
-        db.rollback()
-        print(name)
+    except Error as e:
+        conn.rollback()
         print("Insert error:", e)
         return jsonify({"error": "Insert failed"}), 500
 
 @app.route('/api/search-orders', methods=['GET'])
 def search_orders():
-    keyword = request.args.get('keyword', '')
-    cursor = db.cursor(dictionary=True)
-    query = """
-        SELECT order_id, customer_id, order_status, order_purchase_timestamp
-        FROM olist_orders_dataset
-        WHERE order_id LIKE %s OR customer_id LIKE %s
-        LIMIT 25;
-    """
-    like_pattern = f"%{keyword}%"
-    cursor.execute(query, (like_pattern, like_pattern))
-    results = cursor.fetchall()
-    return jsonify(results)
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
+    try:
+        keyword    = request.args.get('keyword', '')
+        page       = int(request.args.get('page', 1))
+        page_size  = int(request.args.get('page_size', 10))
+        offset     = (page - 1) * page_size
+        like       = f"%{keyword}%"
+        cursor     = conn.cursor(dictionary=True)
+
+        # total count for pagination
+        cursor.execute("""
+            SELECT COUNT(*) AS total
+              FROM olist_orders_dataset
+             WHERE order_id LIKE %s OR customer_id LIKE %s
+        """, (like, like))
+        total = cursor.fetchone()['total']
+
+        cursor.execute("""
+            SELECT order_id, customer_id, order_status, order_purchase_timestamp
+              FROM olist_orders_dataset
+             WHERE order_id LIKE %s OR customer_id LIKE %s
+          ORDER BY order_purchase_timestamp DESC
+             LIMIT %s OFFSET %s
+        """, (like, like, page_size, offset))
+        data = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "data": data,
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": (total + page_size - 1)//page_size
+        })
+    except Error as e:
+        print("Error in search_orders:", e)
+        return jsonify({"error": "Database error"}), 500
 
 @app.route('/api/delete-order/<order_id>', methods=['DELETE'])
 def delete_order(order_id):
-    cursor = db.cursor()
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
+    cursor = conn.cursor()
     cursor.execute("DELETE FROM olist_orders_dataset WHERE order_id = %s", (order_id,))
-    db.commit()
+    conn.commit()
+    cursor.close()
+    conn.close()
     return jsonify({'message': 'Order deleted successfully'})
 
 @app.route('/api/insert-order', methods=['POST'])
 def insert_order():
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
     data = request.json
-    order_id = data.get('order_id')
-    customer_id = data.get('customer_id')
-    order_status = data.get('order_status')
-
-    cursor = db.cursor()
+    cursor = conn.cursor()
     try:
         cursor.execute(
             "INSERT INTO olist_orders_dataset (order_id, customer_id, order_status) VALUES (%s, %s, %s)",
-            (order_id, customer_id, order_status)
+            (data['order_id'], data['customer_id'], data['order_status'])
         )
-        db.commit()
+        conn.commit()
         return jsonify({'message': 'Order inserted successfully'}), 201
-    except mysql.connector.Error as err:
+    except Error as err:
         return jsonify({'error': str(err)}), 400
-
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/api/update-order/<order_id>', methods=['PUT'])
 def update_order(order_id):
-    data = request.json
-    new_status = data.get('order_status')
-    
-    cursor = db.cursor()
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
+    new_status = request.json.get('order_status')
+    cursor = conn.cursor()
     try:
         cursor.execute(
             "UPDATE olist_orders_dataset SET order_status = %s WHERE order_id = %s",
             (new_status, order_id)
         )
-        db.commit()
+        conn.commit()
         return jsonify({'message': 'Order updated successfully'})
-    except mysql.connector.Error as err:
+    except Error as err:
         return jsonify({'error': str(err)}), 400
-
-
+    finally:
+        cursor.close()
+        conn.close()
 
 if __name__ == '__main__':
     app.run(debug=True)
