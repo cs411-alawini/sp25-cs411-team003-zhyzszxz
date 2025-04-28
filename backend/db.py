@@ -6,6 +6,7 @@ from mysql.connector import Error
 app = Flask(__name__)
 CORS(app)
 
+
 DB_CONFIG = {
     'host': '34.172.20.160',
     'user': 'root',
@@ -177,9 +178,31 @@ def update_order(order_id):
         cursor.close()
         conn.close()
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# Use to test transaction
+@app.route('/api/customer-summary/<customer_id>', methods=['GET'])
+def get_customer_summary(customer_id):
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
+    
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM customer_summary WHERE customer_id = %s", (customer_id,))
+        summary = cursor.fetchone()
+        if summary:
+            return jsonify(summary), 200
+        else:
+            return jsonify({'error': 'No summary found for this customer'}), 404
+    except Exception as e:
+        print("Error fetching summary:", e)
+        return jsonify({'error': 'Failed to fetch customer summary'}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
+
+
+# Store Procedure
 @app.route('/api/customer-orders/<customer_id>', methods=['GET'])
 def get_customer_order_details(customer_id):
     conn = get_connection()
@@ -201,6 +224,8 @@ def get_customer_order_details(customer_id):
 
 
 
+
+# Transaction 
 @app.route('/api/insert-order-advanced', methods=['POST'])
 def insert_order_advanced():
     conn = get_connection()
@@ -227,9 +252,16 @@ def insert_order_advanced():
         # 3️⃣ Insert Items (multiple relations join later)
         for item in items:
             cursor.execute("""
-                INSERT INTO olist_order_items_dataset (order_id, product_id, seller_id, price, freight_value)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (order_id, item['product_id'], item['seller_id'], item['price'], item['freight_value']))
+            INSERT INTO olist_order_items_dataset (order_id, order_item_id, product_id, seller_id, price, freight_value)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            order_id,
+            item['order_item_id'],  # Now included
+            item['product_id'],
+            item['seller_id'],
+            item['price'],
+            item['freight_value']
+        ))
 
         # 4️⃣ Advanced Query 1: Aggregation by Seller (GROUP BY)
         cursor.execute("""
@@ -265,3 +297,5 @@ def insert_order_advanced():
         cursor.close()
         conn.close()
 
+if __name__ == '__main__':
+    app.run(debug=True)

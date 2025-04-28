@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const InsertAdvancedOrderComponent = () => {
+const InsertAdvancedOrderComponent = (props) => {
   const [advancedOrder, setAdvancedOrder] = useState({
     order_id: '',
     customer_id: '',
@@ -8,7 +8,8 @@ const InsertAdvancedOrderComponent = () => {
     product_id: '',
     seller_id: '',
     price: '',
-    freight_value: ''
+    freight_value: '',
+    order_item_id: '1'  // Default to 1 for simplicity, can extend for multiple items
   });
 
   const handleAdvancedOrderChange = e => {
@@ -23,12 +24,14 @@ const InsertAdvancedOrderComponent = () => {
       order_status: advancedOrder.order_status,
       items: [
         {
+          order_item_id: parseInt(advancedOrder.order_item_id, 10),  // ensure integer
           product_id: advancedOrder.product_id,
           seller_id: advancedOrder.seller_id,
           price: parseFloat(advancedOrder.price),
           freight_value: parseFloat(advancedOrder.freight_value)
         }
       ]
+      
     };
 
     try {
@@ -39,6 +42,9 @@ const InsertAdvancedOrderComponent = () => {
       });
       const result = await res.json();
       alert(result.message || 'Order processed successfully');
+      if (props.fetchCustomerSummary) {
+        props.fetchCustomerSummary(advancedOrder.customer_id);
+      }
       setAdvancedOrder({
         order_id: '',
         customer_id: '',
@@ -46,7 +52,8 @@ const InsertAdvancedOrderComponent = () => {
         product_id: '',
         seller_id: '',
         price: '',
-        freight_value: ''
+        freight_value: '',
+        order_item_id: '1'
       });
     } catch (err) {
       console.error('Transaction failed:', err);
@@ -77,6 +84,14 @@ const InsertAdvancedOrderComponent = () => {
           value={advancedOrder.order_status}
           onChange={handleAdvancedOrderChange}
           placeholder="Order Status"
+          required
+        />
+        <input
+          name="order_item_id"
+          type="number"
+          value={advancedOrder.order_item_id}
+          onChange={handleAdvancedOrderChange}
+          placeholder="Order Item ID"
           required
         />
         <input
