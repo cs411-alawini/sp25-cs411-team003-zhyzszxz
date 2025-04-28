@@ -151,8 +151,14 @@ def insert_order():
             (data['order_id'], data['customer_id'], data['order_status'])
         )
         conn.commit()
-        return jsonify({'message': 'Order inserted successfully'}), 201
+
+        # Auto-Trigger: Call Stored Procedure after insert
+        cursor.callproc('update_customer_order_stats', [data['customer_id']])
+        conn.commit()
+
+        return jsonify({'message': 'Order inserted and customer summary updated successfully'}), 201
     except Error as err:
+        conn.rollback()
         return jsonify({'error': str(err)}), 400
     finally:
         cursor.close()
@@ -221,7 +227,27 @@ def get_customer_order_details(customer_id):
         cursor.close()
         conn.close()
 
+# 2nd store procedure 
+@app.route('/api/update-customer-summary/<customer_id>', methods=['POST'])
+def update_customer_summary(customer_id):
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
 
+    cursor = conn.cursor()
+    try:
+        # Call the stored procedure
+        cursor.callproc('update_customer_order_stats', [customer_id])
+        conn.commit()
+
+        return jsonify({'message': f'Customer summary updated for {customer_id}'}), 200
+    except Error as err:
+        conn.rollback()
+        print("Stored procedure call failed:", err)
+        return jsonify({'error': 'Failed to update customer summary'}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 
 
@@ -240,16 +266,15 @@ def insert_order_advanced():
 
     cursor = conn.cursor()
     try:
-        # 1️⃣ Start Transaction with Isolation Level
         conn.start_transaction(isolation_level='READ COMMITTED')
 
-        # 2️⃣ Insert Order (basic)
+        # Insert Order (basic)
         cursor.execute("""
             INSERT INTO olist_orders_dataset (order_id, customer_id, order_status)
             VALUES (%s, %s, %s)
         """, (order_id, customer_id, order_status))
 
-        # 3️⃣ Insert Items (multiple relations join later)
+        # Insert Items (multiple relations join later)
         for item in items:
             cursor.execute("""
             INSERT INTO olist_order_items_dataset (order_id, order_item_id, product_id, seller_id, price, freight_value)
@@ -263,7 +288,7 @@ def insert_order_advanced():
             item['freight_value']
         ))
 
-        # 4️⃣ Advanced Query 1: Aggregation by Seller (GROUP BY)
+        # Advanced Query 1: Aggregation by Seller (GROUP BY)
         cursor.execute("""
             SELECT seller_id, AVG(freight_value) AS avg_freight
             FROM olist_order_items_dataset
@@ -273,7 +298,7 @@ def insert_order_advanced():
         avg_freight_result = cursor.fetchone()
         avg_freight = avg_freight_result[1] if avg_freight_result else 0.0
 
-        # 5️⃣ Advanced Query 2: Conditional Update Using Subquery + JOIN
+        # Advanced Query 2: Conditional Update Using Subquery + JOIN
         cursor.execute("""
             UPDATE olist_sellers_dataset s
             JOIN (
@@ -284,8 +309,8 @@ def insert_order_advanced():
             ) avg_data ON s.seller_id = avg_data.seller_id
             SET s.seller_city = IF(avg_data.avg_freight > 50, 'High Freight City', s.seller_city)
         """, (items[0]['seller_id'],))
+        cursor.callproc('update_customer_order_stats', [customer_id])
 
-        # 6️⃣ Commit if all succeed
         conn.commit()
         return jsonify({'message': 'Order, items, and seller updated in transaction'}), 201
 

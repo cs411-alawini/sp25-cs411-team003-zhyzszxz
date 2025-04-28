@@ -79,6 +79,19 @@ export default function App() {
     }
   };
 
+  const updateCustomerSummary = async (customerId) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/update-customer-summary/${customerId}`, {
+        method: 'POST'
+      });
+      const result = await res.json();
+      alert(result.message);
+    } catch (err) {
+      console.error('Failed to update customer summary:', err);
+      alert('Error updating summary');
+    }
+  };
+
   const handleChange = e =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -207,7 +220,10 @@ export default function App() {
             value={customerSearchId}
             onChange={(e) => setCustomerSearchId(e.target.value)}
           />
-          <button onClick={() => fetchCustomerSummary(customerSearchId)}>Show Summary</button>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+            <button onClick={() => fetchCustomerSummary(customerSearchId)}>Show Summary</button>
+            <button onClick={() => updateCustomerSummary(customerSearchId)}>Update Summary</button>
+          </div>
 
           {customerSummary && (
             <div className="summary-card">
