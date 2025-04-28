@@ -3,6 +3,8 @@ import OrderSearchComponent from './OrderSearchComponent';
 import DeleteOrderComponent from './DeleteOrderComponent';
 import InsertOrderComponent from './InsertOrderComponent';
 import UpdateOrderComponent from './UpdateOrderComponent';
+import InsertAdvancedOrderComponent from './InsertAdvancedOrderComponent';
+
 import './App.css';
 
 const VALID_CATEGORIES = [
@@ -118,6 +120,8 @@ export default function App() {
           <InsertOrderComponent />
           <DeleteOrderComponent />
           <UpdateOrderComponent />
+          <CustomerOrdersComponent />
+          <InsertAdvancedOrderComponent />
         </div>
       ) : (
         <div>
@@ -125,6 +129,7 @@ export default function App() {
             <button onClick={() => setCurrentView('orders')}>Manage Orders</button>
           </div>
 
+          
           {/* Product Insert Form */}
           <form onSubmit={handleSubmit} style={{ marginBottom: '1rem' }}>
             <input

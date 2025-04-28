@@ -179,3 +179,89 @@ def update_order(order_id):
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+@app.route('/api/customer-orders/<customer_id>', methods=['GET'])
+def get_customer_order_details(customer_id):
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.callproc('GetCustomerOrderDetails', [customer_id])
+        result = []
+        for res in cursor.stored_results():
+            result.extend(res.fetchall())
+        return jsonify(result)
+    except mysql.connector.Error as err:
+        return jsonify({'error': str(err)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
+
+@app.route('/api/insert-order-advanced', methods=['POST'])
+def insert_order_advanced():
+    conn = get_connection()
+    if not conn:
+        return jsonify({"error": "DB connection failed"}), 500
+    data = request.get_json()
+
+    order_id = data.get('order_id')
+    customer_id = data.get('customer_id')
+    order_status = data.get('order_status')
+    items = data.get('items', [])  # [{product_id, seller_id, price, freight_value}]
+
+    cursor = conn.cursor()
+    try:
+        # 1️⃣ Start Transaction with Isolation Level
+        conn.start_transaction(isolation_level='READ COMMITTED')
+
+        # 2️⃣ Insert Order (basic)
+        cursor.execute("""
+            INSERT INTO olist_orders_dataset (order_id, customer_id, order_status)
+            VALUES (%s, %s, %s)
+        """, (order_id, customer_id, order_status))
+
+        # 3️⃣ Insert Items (multiple relations join later)
+        for item in items:
+            cursor.execute("""
+                INSERT INTO olist_order_items_dataset (order_id, product_id, seller_id, price, freight_value)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (order_id, item['product_id'], item['seller_id'], item['price'], item['freight_value']))
+
+        # 4️⃣ Advanced Query 1: Aggregation by Seller (GROUP BY)
+        cursor.execute("""
+            SELECT seller_id, AVG(freight_value) AS avg_freight
+            FROM olist_order_items_dataset
+            WHERE seller_id = %s
+            GROUP BY seller_id
+        """, (items[0]['seller_id'],))
+        avg_freight_result = cursor.fetchone()
+        avg_freight = avg_freight_result[1] if avg_freight_result else 0.0
+
+        # 5️⃣ Advanced Query 2: Conditional Update Using Subquery + JOIN
+        cursor.execute("""
+            UPDATE olist_sellers_dataset s
+            JOIN (
+                SELECT seller_id, AVG(freight_value) AS avg_freight
+                FROM olist_order_items_dataset
+                WHERE seller_id = %s
+                GROUP BY seller_id
+            ) avg_data ON s.seller_id = avg_data.seller_id
+            SET s.seller_city = IF(avg_data.avg_freight > 50, 'High Freight City', s.seller_city)
+        """, (items[0]['seller_id'],))
+
+        # 6️⃣ Commit if all succeed
+        conn.commit()
+        return jsonify({'message': 'Order, items, and seller updated in transaction'}), 201
+
+    except Error as err:
+        conn.rollback()
+        print("Transaction failed:", err)
+        return jsonify({'error': 'Transaction failed'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
