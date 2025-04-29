@@ -59,24 +59,38 @@ def add_product():
     conn = get_connection()
     if not conn:
         return jsonify({"error": "DB connection failed"}), 500
+    
     try:
         data = request.get_json()
+
+        # ✅ Validate that required fields exist
+        required_fields = ["name", "quantity", "price", "order_id", "seller_id"]
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+        
         cursor = conn.cursor()
         cursor.execute("SET @new_id = UUID()")
+        
+        # Insert into olist_products_dataset
         cursor.execute("""
             INSERT INTO olist_products_dataset
               (product_id, product_category_name, product_photos_qty)
             VALUES (@new_id, %s, %s)
         """, (data["name"], int(data["quantity"])))
+
+        # Insert into olist_order_items_dataset
         cursor.execute("""
             INSERT INTO olist_order_items_dataset
               (order_id, order_item_id, product_id, seller_id, price, freight_value)
             VALUES (%s, 1, @new_id, %s, %s, 0.0)
         """, (data["order_id"], data["seller_id"], float(data["price"])))
+
         conn.commit()
         cursor.close()
         conn.close()
         return jsonify({"message": "Product and order item added successfully"}), 201
+    
     except Error as e:
         conn.rollback()
         print("Insert error:", e)
@@ -210,22 +224,42 @@ def get_customer_summary(customer_id):
 
 # Store Procedure
 @app.route('/api/customer-orders/<customer_id>', methods=['GET'])
-def get_customer_order_details(customer_id):
+def get_customer_orders_advanced(customer_id):
     conn = get_connection()
     if not conn:
         return jsonify({"error": "DB connection failed"}), 500
+
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.callproc('GetCustomerOrderDetails', [customer_id])
-        result = []
-        for res in cursor.stored_results():
-            result.extend(res.fetchall())
-        return jsonify(result)
+        cursor.callproc('GetCustomerOrders', [customer_id])
+        result = {
+            "orders": [],
+            "average_order_value": None,
+            "message": None
+        }
+
+        for idx, res in enumerate(cursor.stored_results()):
+            if idx == 0:
+                # First result set: Order details with total amount
+                result["orders"] = res.fetchall()
+            elif idx == 1:
+                # Second result set: Average order value
+                avg_data = res.fetchone()
+                result["average_order_value"] = avg_data['avg_order_value'] if avg_data else 0
+            elif idx == 2:
+                # Third result set: Possible message if no orders
+                msg_data = res.fetchone()
+                if msg_data:
+                    result["message"] = msg_data['message']
+
+        return jsonify(result), 200
     except mysql.connector.Error as err:
+        print("Stored procedure error:", err)
         return jsonify({'error': str(err)}), 500
     finally:
         cursor.close()
         conn.close()
+
 
 # 2nd store procedure 
 @app.route('/api/update-customer-summary/<customer_id>', methods=['POST'])

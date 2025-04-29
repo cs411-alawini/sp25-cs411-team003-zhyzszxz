@@ -4,7 +4,6 @@ import DeleteOrderComponent from './DeleteOrderComponent';
 import InsertOrderComponent from './InsertOrderComponent';
 import UpdateOrderComponent from './UpdateOrderComponent';
 import InsertAdvancedOrderComponent from './InsertAdvancedOrderComponent';
-import CustomerOrdersComponent from './CustomerOrdersComponent';
 import './App.css';
 
 const VALID_CATEGORIES = [
@@ -29,26 +28,29 @@ const VALID_CATEGORIES = [
   "telefonia", "telefonia_fixa", "utilidades_domesticas"
 ];
 
+// Utility for safe currency formatting
+const formatCurrency = (value) => {
+  if (value === null || value === undefined || isNaN(Number(value))) {
+    return 'N/A';
+  }
+  return Number(value).toFixed(2);
+};
+
 export default function App() {
   const [currentView, setCurrentView] = useState('orders');
   const [products, setProducts] = useState([]);
   const [formData, setFormData] = useState({
-    title: '',
-    name: VALID_CATEGORIES[0],
-    quantity: '',
-    price: '',
-    order_id: '',
-    seller_id: ''
+    title: '', name: VALID_CATEGORIES[0], quantity: '', price: '', order_id: '', seller_id: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [customerSearchId, setCustomerSearchId] = useState('');
-  const [customerSummary, setCustomerSummary] = useState(null);
+  const [customerOrders, setCustomerOrders] = useState([]);
+  const [avgOrderValue, setAvgOrderValue] = useState(null);
+  const [noOrdersMessage, setNoOrdersMessage] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 5;
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  useEffect(() => { fetchProducts(); }, []);
 
   const fetchProducts = async () => {
     try {
@@ -63,27 +65,26 @@ export default function App() {
     }
   };
 
-  const fetchCustomerSummary = async (customerId) => {
+  const fetchCustomerOrdersAdvanced = async (customerId) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/customer-summary/${customerId}`);
+      const res = await fetch(`http://localhost:5000/api/customer-orders/${customerId}`);
       const data = await res.json();
       if (res.ok) {
-        setCustomerSummary(data);
+        setCustomerOrders(data.orders || []);
+        setAvgOrderValue(data.average_order_value || null);
+        setNoOrdersMessage(data.message || '');
       } else {
-        setCustomerSummary(null);
-        alert(data.error || 'No summary found');
+        alert(data.error || 'Error fetching customer orders');
       }
     } catch (error) {
-      console.error('Error fetching summary:', error);
-      alert('Error fetching customer summary');
+      console.error('Error:', error);
+      alert('Error fetching customer orders');
     }
   };
 
   const updateCustomerSummary = async (customerId) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/update-customer-summary/${customerId}`, {
-        method: 'POST'
-      });
+      const res = await fetch(`http://localhost:5000/api/update-customer-summary/${customerId}`, { method: 'POST' });
       const result = await res.json();
       alert(result.message);
     } catch (err) {
@@ -92,35 +93,29 @@ export default function App() {
     }
   };
 
-  const handleChange = e =>
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = e => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async e => {
     e.preventDefault();
+    // Basic validation (could be stricter)
+    if (!formData.order_id || !formData.seller_id) {
+      alert('Order ID and Seller ID are required.');
+      return;
+    }
     try {
       const res = await fetch('http://localhost:5000/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formData.name,
-          quantity: formData.quantity,
-          price: formData.price,
-          order_id: formData.order_id,
-          seller_id: formData.seller_id
+          name: formData.name, quantity: formData.quantity, price: formData.price,
+          order_id: formData.order_id, seller_id: formData.seller_id
         })
       });
       const result = await res.json();
       if (result.message === 'Product and order item added successfully') {
         localStorage.setItem(formData.order_id, formData.title);
       }
-      setFormData({
-        title: '',
-        name: VALID_CATEGORIES[0],
-        quantity: '',
-        price: '',
-        order_id: '',
-        seller_id: ''
-      });
+      setFormData({ title: '', name: VALID_CATEGORIES[0], quantity: '', price: '', order_id: '', seller_id: '' });
       fetchProducts();
     } catch (err) {
       console.error('Insert failed:', err);
@@ -164,9 +159,7 @@ export default function App() {
           <form onSubmit={handleSubmit}>
             <input name="title" value={formData.title} onChange={handleChange} placeholder="Product Name (visual only)" required />
             <select name="name" value={formData.name} onChange={handleChange} required>
-              {VALID_CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
+              {VALID_CATEGORIES.map(cat => (<option key={cat} value={cat}>{cat}</option>))}
             </select>
             <input name="quantity" type="number" value={formData.quantity} onChange={handleChange} placeholder="Quantity" required />
             <input name="price" type="number" step="0.01" value={formData.price} onChange={handleChange} placeholder="Price" required />
@@ -176,7 +169,8 @@ export default function App() {
           </form>
 
           <h2>Search Products</h2>
-          <input type="text" placeholder="Type to search by title, category, order ID or seller ID" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setPage(1); }} />
+          <input type="text" placeholder="Search by title, category, order ID or seller ID"
+            value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setPage(1); }} />
 
           {searchTerm.trim() === '' ? (
             <p className="center-text">Enter a term to search products.</p>
@@ -188,7 +182,7 @@ export default function App() {
                 {paged.map((p, i) => (
                   <li key={`${p.id || p.order_id}-${i}`}>
                     <strong>{p.title || p.name}</strong> ({p.name})<br />
-                    {p.quantity} units @ ${p.price ?? 'N/A'}<br />
+                    {p.quantity} units @ ${formatCurrency(p.price)}<br />
                     <em>Order ID:</em> {p.order_id}<br />
                     <em>Seller ID:</em> {p.seller_id}
                   </li>
@@ -208,31 +202,32 @@ export default function App() {
       {currentView === 'customers' && (
         <div className="card">
           <h2>Customer Management</h2>
-          <p>View customer orders and summary details below.</p>
-
-          <h3>View Customer Orders</h3>
-          <CustomerOrdersComponent />
-
-          <h3>View Customer Summary</h3>
-          <input
-            type="text"
-            placeholder="Enter Customer ID"
-            value={customerSearchId}
-            onChange={(e) => setCustomerSearchId(e.target.value)}
-          />
+          <input type="text" placeholder="Enter Customer ID"
+            value={customerSearchId} onChange={(e) => setCustomerSearchId(e.target.value)} />
           <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-            <button onClick={() => fetchCustomerSummary(customerSearchId)}>Show Summary</button>
+            <button onClick={() => fetchCustomerOrdersAdvanced(customerSearchId)}>Fetch Orders & Stats</button>
             <button onClick={() => updateCustomerSummary(customerSearchId)}>Update Summary</button>
           </div>
 
-          {customerSummary && (
-            <div className="summary-card">
-              <h4>Customer Summary</h4>
-              <p><strong>Customer ID:</strong> {customerSummary.customer_id}</p>
-              <p><strong>Total Orders:</strong> {customerSummary.total_orders}</p>
-              <p><strong>Total Spent:</strong> ${customerSummary.total_spent}</p>
-              <p><strong>Last Updated:</strong> {new Date(customerSummary.last_updated).toLocaleString()}</p>
-            </div>
+          {noOrdersMessage && <p style={{ color: 'red', marginTop: '1rem' }}>{noOrdersMessage}</p>}
+
+          {customerOrders.length > 0 && (
+            <>
+              <h3>Customer Orders</h3>
+              <ul>
+                {customerOrders.map((order, index) => (
+                  <li key={index}>
+                    <strong>Order ID:</strong> {order.order_id}<br />
+                    <strong>Status:</strong> {order.order_status}<br />
+                    <strong>Purchase Date:</strong> {new Date(order.order_purchase_timestamp).toLocaleString()}<br />
+                    <strong>Total Amount:</strong> ${formatCurrency(order.total_amount)}
+                  </li>
+                ))}
+              </ul>
+              {avgOrderValue !== null && (
+                <p><strong>Average Order Value:</strong> ${formatCurrency(avgOrderValue)}</p>
+              )}
+            </>
           )}
         </div>
       )}
